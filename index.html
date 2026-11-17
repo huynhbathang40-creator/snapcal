@@ -171,7 +171,7 @@
       <input id="sProtein" type="number" inputmode="numeric" min="0" max="400">
       <label for="sModel">Model Gemini</label>
       <input id="sModel" type="text" autocapitalize="off" autocorrect="off">
-      <p class="muted">Để mặc định <code>gemini-flash-latest</code>. Nếu lỗi, app tự thử <code>gemini-2.5-flash</code> và <code>gemini-2.5-flash-lite</code>.</p>
+      <p class="muted">Không cần sửa. Nếu model này không còn, app tự tìm model Gemini Flash mới nhất mà key của bạn dùng được và lưu lại ở đây.</p>
       <div class="row" style="margin-top:12px">
         <button class="primary" id="saveSettings">Lưu</button>
         <button id="testKey">Thử key</button>
@@ -493,8 +493,9 @@ async function analyze({ b64, note }) {
   });
 
   const models = [...new Set([workingModel, settings.model, ...FALLBACK_MODELS].filter(Boolean))];
-  let lastErr = null;
-  for (const model of models) {
+  let lastErr = null, discovered = false;
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
     let r;
     try {
       r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -504,7 +505,15 @@ async function analyze({ b64, note }) {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
       const msg = j?.error?.message || `HTTP ${r.status}`;
-      if (r.status === 404) { lastErr = new Error(`Model "${model}" không tồn tại.`); continue; }
+      if (r.status === 404) {
+        lastErr = new Error(`Model "${model}" không tồn tại.`);
+        // all known names failed: ask Google which models this key can use, then try those
+        if (i === models.length - 1 && !discovered) {
+          discovered = true;
+          for (const m of await discoverModels()) if (!models.includes(m)) models.push(m);
+        }
+        continue;
+      }
       if (r.status === 429) throw new Error('Đã chạm giới hạn miễn phí của Gemini (429). Đợi 1–2 phút rồi thử lại; nếu hết lượt trong ngày thì mai sẽ reset.');
       if (r.status === 400 && /api key/i.test(msg)) throw new Error('API key không hợp lệ. Kiểm tra lại trong Cài đặt.');
       if (r.status === 503 || r.status === 500) { lastErr = new Error(`Gemini đang quá tải (${r.status}). Thử lại sau.`); continue; }
@@ -521,9 +530,36 @@ async function analyze({ b64, note }) {
     }));
     data._model = model;
     workingModel = model;
+    if (settings.model !== model) {
+      settings.model = model; save(LS_SETTINGS, settings);
+      if ($('sModel')) $('sModel').value = model;
+    }
     return data;
   }
   throw lastErr || new Error('Không gọi được Gemini.');
+}
+
+// List models this API key can call; return Flash text models, newest first, non-lite before lite.
+async function discoverModels() {
+  try {
+    let all = [], token = '';
+    for (let page = 0; page < 5; page++) {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200${token ? '&pageToken=' + token : ''}`,
+        { headers: { 'x-goog-api-key': settings.apiKey } });
+      if (!r.ok) break;
+      const j = await r.json();
+      all = all.concat(j.models || []);
+      if (!j.nextPageToken) break;
+      token = encodeURIComponent(j.nextPageToken);
+    }
+    const ver = (n) => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || 0);
+    const names = all
+      .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map((m) => String(m.name || '').replace(/^models\//, ''))
+      .filter((n) => /^gemini-.*flash/.test(n) && !/(image|tts|audio|live|embed|thinking-exp|computer|robotics)/.test(n));
+    const score = (n) => ver(n) * 100 - (/lite/.test(n) ? 50 : 0) - (/preview|exp/.test(n) ? 10 : 0) - (/-\d{3}$|-\d{2}-\d{4}$/.test(n) ? 1 : 0);
+    return [...new Set(names)].sort((a, b) => score(b) - score(a)).slice(0, 6);
+  } catch { return []; }
 }
 // ---------- SHEET ----------
 let draft = null; // { id?, b64?, thumb?, items, type, note, time? }
