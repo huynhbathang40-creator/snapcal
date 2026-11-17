@@ -142,6 +142,7 @@
       <button class="ghost" id="nextDay" aria-label="Ngày sau">▶</button>
     </div>
 
+    <div id="syncStatus" class="muted" style="text-align:center;margin:-4px 0 8px;font-size:13px"></div>
     <div id="backupNotice" class="notice" hidden>
       Đã lâu chưa sao lưu dữ liệu. <button id="backupNow" style="padding:6px 10px;margin-left:6px">Sao lưu ngay</button>
     </div>
@@ -227,6 +228,20 @@
         <button id="testKey">Thử key</button>
       </div>
       <div id="settingsMsg" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <h2>Đồng bộ iPhone ↔ MacBook</h2>
+    <div class="card">
+      <p class="muted" style="margin-top:0">Dữ liệu được lưu trong một <b>secret gist</b> trong tài khoản GitHub của bạn (miễn phí). Mỗi máy dán cùng một token một lần là tự đồng bộ.</p>
+      <label for="ghToken">GitHub token (quyền <code>gist</code>)</label>
+      <input id="ghToken" type="password" autocomplete="off" placeholder="ghp_...">
+      <p class="muted">Tạo token tại <a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=SnapCal%20sync" target="_blank" rel="noopener">github.com/settings/tokens/new</a>: chỉ tick <b>gist</b>, Expiration chọn <b>No expiration</b>.</p>
+      <div class="row" style="margin-top:8px;flex-wrap:wrap">
+        <button class="primary" id="ghConnect">Kết nối &amp; đồng bộ</button>
+        <button id="ghSyncNow">Đồng bộ ngay</button>
+        <button class="ghost" id="ghDisconnect" style="color:var(--warn)">Ngắt kết nối</button>
+      </div>
+      <div id="ghMsg" class="muted" style="margin-top:8px"></div>
     </div>
 
     <h2>Dữ liệu</h2>
@@ -532,11 +547,11 @@ function readSettings() {
   };
 }
 $('saveSettings').onclick = () => {
-  settings = readSettings(); save(LS_SETTINGS, settings); workingModel = null;
+  settings = { ...readSettings(), updatedAt: Date.now() }; save(LS_SETTINGS, settings); workingModel = null; scheduleSync();
   $('settingsMsg').textContent = '✓ Đã lưu.';
 };
 $('testKey').onclick = async () => {
-  settings = readSettings(); save(LS_SETTINGS, settings);
+  settings = { ...readSettings(), updatedAt: Date.now() }; save(LS_SETTINGS, settings); scheduleSync();
   const msg = $('settingsMsg');
   if (!settings.apiKey) { msg.textContent = 'Chưa nhập key.'; return; }
   msg.innerHTML = '<span class="spinner"></span>Đang thử...';
@@ -563,13 +578,16 @@ $('importInput').onchange = async (e) => {
     if (!Array.isArray(j.meals)) throw new Error('File không đúng định dạng.');
     const ids = new Set(meals.map((m) => m.id));
     const added = j.meals.filter((m) => m && m.id && m.date && Array.isArray(m.items) && !ids.has(m.id));
-    meals = meals.concat(added); save(LS_MEALS, meals);
+    const now = Date.now();
+    added.forEach((m) => { m.updatedAt = now; delete tomb[m.id]; });
+    meals = meals.concat(added); save(LS_MEALS, meals); save(LS_TOMB, tomb); scheduleSync();
     $('dataMsg').textContent = `✓ Đã nhập ${added.length} bữa ăn.`;
   } catch (err) { $('dataMsg').textContent = '✗ ' + err.message; }
 };
 $('wipeBtn').onclick = () => {
-  if (!confirm('Xoá toàn bộ nhật ký ăn uống? (Key và cài đặt vẫn giữ)')) return;
-  meals = []; save(LS_MEALS, meals); $('dataMsg').textContent = 'Đã xoá.';
+  if (!confirm('Xoá toàn bộ nhật ký ăn uống? Nếu đang đồng bộ, máy kia cũng sẽ bị xoá. (Key và cài đặt vẫn giữ)')) return;
+  const now = Date.now(); meals.forEach((m) => { tomb[m.id] = now; });
+  meals = []; save(LS_MEALS, meals); save(LS_TOMB, tomb); scheduleSync(); $('dataMsg').textContent = 'Đã xoá.';
 };
 // ---------- IMAGE ----------
 async function loadImage(file) {
@@ -825,15 +843,16 @@ $('saveMeal').onclick = () => {
   const meal = {
     id: draft.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 7)),
     date: draft.date || viewDate, time, type: $('mealType').value,
-    items, note: $('note').value.trim(), thumb: draft.thumb || null,
+    items, note: $('note').value.trim(), thumb: draft.thumb || null, updatedAt: Date.now(),
   };
   const idx = meals.findIndex((m) => m.id === meal.id);
   if (idx >= 0) meals[idx] = meal; else meals.push(meal);
-  if (save(LS_MEALS, meals)) { closeSheet(); renderToday(); }
+  if (save(LS_MEALS, meals)) { closeSheet(); renderToday(); scheduleSync(); }
 };
 $('deleteMeal').onclick = () => {
   if (!draft?.id || !confirm('Xoá bữa ăn này?')) return;
-  meals = meals.filter((m) => m.id !== draft.id); save(LS_MEALS, meals); closeSheet(); renderToday();
+  tomb[draft.id] = Date.now(); save(LS_TOMB, tomb);
+  meals = meals.filter((m) => m.id !== draft.id); save(LS_MEALS, meals); closeSheet(); renderToday(); scheduleSync();
 };
 
 async function onPhoto(e) {
@@ -867,6 +886,124 @@ document.addEventListener('visibilitychange', () => {
   const t = dstr(new Date());
   if (t !== lastToday) { if (viewDate === lastToday) viewDate = t; lastToday = t; renderToday(); }
 });
+
+// ---------- SYNC (secret GitHub gist) ----------
+// Each device keeps a full local copy; sync merges by meal.updatedAt (newest wins) and tombstones for deletes.
+const LS_TOMB = 'snapcal.tomb.v1', LS_GH = 'snapcal.gh.v1', GIST_FILE = 'snapcal-data.json';
+let tomb = load(LS_TOMB, {}); if (!tomb || typeof tomb !== 'object') tomb = {};
+let gh = load(LS_GH, {}); if (!gh || typeof gh !== 'object') gh = {};
+const mUpd = (m) => m.updatedAt || Date.parse(m.time) || 0;
+let syncing = false, syncAgain = false, syncTimer = null;
+
+function scheduleSync(delay = 1500) {
+  if (!gh.token) return;
+  clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, delay);
+}
+async function ghApi(path, opts = {}) {
+  let r;
+  try {
+    r = await fetch('https://api.github.com' + path, { ...opts, cache: 'no-store', headers: {
+      Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + gh.token,
+      ...(opts.body ? { 'Content-Type': 'application/json' } : {}) } });
+  } catch { throw new Error('Mất mạng, sẽ đồng bộ lại khi có mạng.'); }
+  if (r.status === 401) throw new Error('GitHub token không hợp lệ hoặc đã hết hạn.');
+  if (r.status === 403) throw new Error('Token thiếu quyền gist, hoặc GitHub đang giới hạn. Thử lại sau.');
+  if (r.status === 404) { const e = new Error('404'); e.status = 404; throw e; }
+  if (!r.ok) throw new Error('GitHub lỗi ' + r.status);
+  return r.status === 204 ? null : r.json();
+}
+async function findGist() {
+  for (let page = 1; page <= 10; page++) {
+    const list = await ghApi(`/gists?per_page=100&page=${page}`);
+    const g = list.find((x) => x.files && x.files[GIST_FILE]);
+    if (g) return g.id;
+    if (list.length < 100) break;
+  }
+  return null;
+}
+async function readRemote() {
+  if (!gh.gistId) { gh.gistId = await findGist(); save(LS_GH, gh); }
+  if (!gh.gistId) return null;
+  let g;
+  try { g = await ghApi('/gists/' + gh.gistId); }
+  catch (e) {
+    if (e.status !== 404) throw e;
+    gh.gistId = await findGist(); save(LS_GH, gh);
+    if (!gh.gistId) return null;
+    g = await ghApi('/gists/' + gh.gistId);
+  }
+  const f = g.files && g.files[GIST_FILE];
+  if (!f) return { data: {}, text: '' };
+  let text = f.content || '';
+  if (f.truncated) text = await (await fetch(f.raw_url, { cache: 'no-store' })).text();
+  try { return { data: JSON.parse(text || '{}'), text }; } catch { return { data: {}, text }; }
+}
+function mergeData(remote) {
+  for (const [id, t] of Object.entries(remote.tomb || {})) if (!(tomb[id] >= t)) tomb[id] = t;
+  const byId = new Map();
+  for (const m of [...(remote.meals || []), ...meals]) {
+    if (!m || !m.id || !m.date || !Array.isArray(m.items)) continue;
+    const cur = byId.get(m.id);
+    if (!cur || mUpd(m) >= mUpd(cur)) byId.set(m.id, m);
+  }
+  meals = [...byId.values()].filter((m) => !(tomb[m.id] >= mUpd(m)));
+  const cutoff = Date.now() - 120 * 864e5;
+  for (const id of Object.keys(tomb)) if (tomb[id] < cutoff) delete tomb[id];
+  const rs = remote.settings;
+  if (rs && (rs.updatedAt || 0) > (settings.updatedAt || 0)) {
+    settings = { ...settings, goal: rs.goal || settings.goal, protein: rs.protein || settings.protein, model: rs.model || settings.model, updatedAt: rs.updatedAt };
+    save(LS_SETTINGS, settings);
+  }
+  save(LS_MEALS, meals); save(LS_TOMB, tomb);
+}
+function payload() {
+  return JSON.stringify({ app: 'snapcal', v: 1,
+    meals: meals.slice().sort((a, b) => (a.id < b.id ? -1 : 1)), tomb,
+    settings: { goal: settings.goal, protein: settings.protein, model: settings.model, updatedAt: settings.updatedAt || 0 } });
+}
+function setSync(msg) {
+  const txt = msg || (gh.lastSync ? `☁️ Đã đồng bộ lúc ${new Date(gh.lastSync).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` : '');
+  $('syncStatus').textContent = gh.token ? txt : '';
+  $('ghMsg').textContent = gh.token ? txt : 'Chưa kết nối.';
+}
+function refreshViews() {
+  if ($('v-today').classList.contains('on')) renderToday();
+  if ($('v-history').classList.contains('on')) renderHistory();
+}
+async function syncNow() {
+  if (!gh.token) return;
+  if (syncing) { syncAgain = true; return; }
+  syncing = true; setSync('⏳ Đang đồng bộ...');
+  try {
+    const remote = await readRemote();
+    if (!remote) {
+      const g = await ghApi('/gists', { method: 'POST', body: JSON.stringify({
+        description: 'SnapCal data (do not delete)', public: false, files: { [GIST_FILE]: { content: payload() } } }) });
+      gh.gistId = g.id;
+    } else {
+      mergeData(remote.data);
+      const p = payload();
+      if (p !== remote.text) await ghApi('/gists/' + gh.gistId, { method: 'PATCH', body: JSON.stringify({ files: { [GIST_FILE]: { content: p } } }) });
+    }
+    gh.lastSync = Date.now(); save(LS_GH, gh); setSync(); refreshViews();
+  } catch (e) { setSync('⚠️ ' + e.message); }
+  finally { syncing = false; if (syncAgain) { syncAgain = false; scheduleSync(300); } }
+}
+$('ghConnect').onclick = async () => {
+  const t = $('ghToken').value.trim();
+  if (!t) { $('ghMsg').textContent = 'Dán token trước đã.'; return; }
+  gh = { token: t }; save(LS_GH, gh);
+  await syncNow();
+  if (gh.lastSync) $('ghMsg').textContent = `✓ Đã kết nối. ${meals.length} bữa ăn đã đồng bộ.`;
+};
+$('ghSyncNow').onclick = () => { if (!gh.token) { $('ghMsg').textContent = 'Chưa kết nối.'; return; } syncNow(); };
+$('ghDisconnect').onclick = () => {
+  if (!confirm('Ngắt đồng bộ trên máy này? Dữ liệu trên máy và trên GitHub vẫn giữ nguyên.')) return;
+  gh = {}; save(LS_GH, gh); $('ghToken').value = ''; setSync();
+};
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(0); });
+window.addEventListener('online', () => scheduleSync(0));
+if (gh.token) { $('ghToken').value = gh.token; setSync(); syncNow(); } else setSync();
 
 // iOS needs a PNG home-screen icon: draw it on a canvas at startup
 try {
