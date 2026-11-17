@@ -2,9 +2,10 @@
 
 Personal calorie tracker: take a photo of a meal, Gemini estimates calories and macros, and the log is saved on the phone.
 
+- Log meals by photo, by text description (AI), or by typing calories yourself (no AI).
 - 100% static (one `index.html`), no server, no database.
 - AI: Google Gemini API, called directly from the browser with your own key (free tier).
-- Data: stored in the browser's `localStorage` on your device. Use **Settings → Export backup** now and then.
+- Data: stored in the browser's `localStorage` on your device. Use **Settings → Export backup** now and then (the app reminds you every 7 days).
 - The API key is NOT in this repo. You paste it in the app's Settings; it stays on your device.
 
 ## Setup
@@ -21,6 +22,7 @@ Personal calorie tracker: take a photo of a meal, Gemini estimates calories and 
 - On the free tier Google may use requests to improve its products.
 - Default model: `gemini-flash-latest`, with automatic fallback to `gemini-2.5-flash` and `gemini-2.5-flash-lite`.
 
-## Deploy
+## Deploy (GitHub Pages)
 
-Static site, no build step. Netlify publishes the repo root (see `netlify.toml`).
+Static site, no build step. Repo → Settings → Pages → Source: "Deploy from a branch" → Branch `main`, folder `/ (root)` → Save.
+The app will be at `https://<username>.github.io/snapcal/`.

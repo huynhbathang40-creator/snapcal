@@ -1,12 +1,691 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SnapCal</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SnapCal">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" id="touchIcon" href="icon.svg">
+<meta name="robots" content="noindex, nofollow">
+<title>SnapCal</title>
+<style>
+  :root {
+    --bg: #f4f6f5; --card: #ffffff; --text: #16201d; --muted: #66736f; --line: #e3e8e6;
+    --brand: #0f766e; --brand-soft: #d9f0ec; --warn: #c2410c;
+    --p: #2563eb; --c: #d97706; --f: #db2777;
+    --radius: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0e1412; --card: #172120; --text: #e8efed; --muted: #95a39f; --line: #26322f; --brand: #2dd4bf; --brand-soft: #123532; --warn: #fb923c; }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding: env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom)); }
+  main { max-width: 560px; margin: 0 auto; padding: 12px 14px; }
+  h1 { font-size: 22px; margin: 6px 0 12px; }
+  h2 { font-size: 17px; margin: 18px 0 8px; }
+  .card { background: var(--card); border-radius: var(--radius); padding: 16px; border: 1px solid var(--line); }
+  .muted { color: var(--muted); font-size: 14px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .between { justify-content: space-between; }
+  button, .btn { font: inherit; border: 0; border-radius: 12px; padding: 12px 14px; cursor: pointer;
+    background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+  button.primary, .btn.primary { background: var(--brand); color: #fff; }
+  @media (prefers-color-scheme: dark) { button.primary, .btn.primary { color: #062421; } }
+  button.ghost { background: transparent; color: var(--muted); padding: 8px; }
+  button:disabled { opacity: .5; }
+  input, textarea, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px; width: 100%; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 12px 0 4px; }
+
+  .datebar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .datebar strong { font-size: 17px; }
+  .summary { display: grid; grid-template-columns: 130px 1fr; gap: 16px; align-items: center; }
+  .ring { position: relative; width: 130px; height: 130px; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring .big { font-size: 26px; font-weight: 700; }
+  .macro { margin: 6px 0; }
+  .macro .bar { height: 8px; background: var(--line); border-radius: 6px; overflow: hidden; margin-top: 3px; }
+  .macro .bar > i { display: block; height: 100%; border-radius: 6px; }
+
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0; }
+  .actions .btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 6px; font-size: 14px; text-align: center; margin: 0; }
+  .actions .btn span { font-size: 24px; }
+  .actions input { display: none; }
+
+  .meal { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  .meal:first-child { border-top: 0; }
+  .meal img, .meal .noimg { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; flex: none; background: var(--brand-soft);
+    display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .meal .info { flex: 1; min-width: 0; }
+  .meal .names { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meal .kcal { font-weight: 700; white-space: nowrap; }
+  .empty { text-align: center; padding: 22px 0; }
+
+  nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: var(--card); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+  nav.tabs button { flex: 1; background: none; color: var(--muted); border-radius: 0; padding: 10px 0 12px; font-size: 13px; }
+  nav.tabs button span { display: block; font-size: 20px; }
+  nav.tabs button.on { color: var(--brand); }
+  .view { display: none; } .view.on { display: block; }
+
+  .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 10; }
+  .sheet-bg.on { display: block; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 92vh; overflow-y: auto; background: var(--card);
+    border-radius: 20px 20px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto; }
+  .preview { width: 100%; max-height: 260px; object-fit: cover; border-radius: 14px; display: block; }
+  .item { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin: 8px 0; }
+  .item .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
+  .item .grid label { margin: 0 0 2px; font-size: 12px; }
+  .item input { padding: 8px; }
+  .totals { font-weight: 700; margin: 10px 0; }
+  .err { color: var(--warn); font-size: 14px; margin-top: 8px; white-space: pre-wrap; }
+  .spinner { width: 18px; height: 18px; border: 3px solid currentColor; border-right-color: transparent; border-radius: 50%;
+    display: inline-block; animation: spin .8s linear infinite; vertical-align: -3px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 150px; padding-top: 10px; }
+  .bars .b { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; font-size: 10px; color: var(--muted); }
+  .bars .b i { width: 100%; background: var(--brand); border-radius: 4px 4px 0 0; min-height: 2px; }
+  .bars .b i.over { background: var(--warn); }
+  .notice { background: var(--brand-soft); border-radius: 12px; padding: 12px; font-size: 14px; margin-bottom: 12px; }
+</style>
 </head>
 <body>
-    <h1>Welcome to SnapCal!</h1>
-    <p>This is a sample application.</p>
+<main>
+
+  <!-- TODAY -->
+  <section id="v-today" class="view on">
+    <div class="datebar">
+      <button class="ghost" id="prevDay" aria-label="Ngày trước">◀</button>
+      <strong id="dateLabel"></strong>
+      <button class="ghost" id="nextDay" aria-label="Ngày sau">▶</button>
+    </div>
+
+    <div id="backupNotice" class="notice" hidden>
+      Đã lâu chưa sao lưu dữ liệu. <button id="backupNow" style="padding:6px 10px;margin-left:6px">Sao lưu ngay</button>
+    </div>
+
+    <div id="keyNotice" class="notice" hidden>
+      Chưa có Gemini API key. Vào tab <b>Cài đặt</b> để dán key (lấy miễn phí ở aistudio.google.com/apikey).
+    </div>
+
+    <div class="card summary">
+      <div class="ring">
+        <svg width="130" height="130" viewBox="0 0 130 130">
+          <circle cx="65" cy="65" r="56" fill="none" stroke="var(--line)" stroke-width="12"/>
+          <circle id="ringArc" cx="65" cy="65" r="56" fill="none" stroke="var(--brand)" stroke-width="12" stroke-linecap="round"
+                  stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
+        </svg>
+        <div class="center"><div class="big" id="kcalEaten">0</div><div class="muted" id="kcalGoal">/ 2000 kcal</div></div>
+      </div>
+      <div>
+        <div id="remaining" style="font-weight:600;margin-bottom:6px"></div>
+        <div class="macro"><div class="row between"><span>Protein</span><span id="mP" class="muted"></span></div><div class="bar"><i id="bP" style="background:var(--p)"></i></div></div>
+        <div class="macro"><div class="row between"><span>Carbs</span><span id="mC" class="muted"></span></div><div class="bar"><i id="bC" style="background:var(--c)"></i></div></div>
+        <div class="macro"><div class="row between"><span>Fat</span><span id="mF" class="muted"></span></div><div class="bar"><i id="bF" style="background:var(--f)"></i></div></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <label class="btn primary"><span>📷</span>Chụp ảnh<input type="file" accept="image/*" capture="environment" id="camInput"></label>
+      <label class="btn"><span>🖼️</span>Chọn ảnh<input type="file" accept="image/*" id="libInput"></label>
+      <button class="btn" id="textBtn"><span>✍️</span>Mô tả cho AI</button>
+      <button class="btn" id="quickBtn"><span>➕</span>Tự nhập calo</button>
+    </div>
+
+    <div class="card">
+      <div class="row between"><strong>Bữa ăn</strong><span class="muted" id="mealCount"></span></div>
+      <div id="mealList"></div>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section id="v-history" class="view">
+    <h1>Lịch sử 14 ngày</h1>
+    <div class="card">
+      <div class="bars" id="bars"></div>
+      <p class="muted" id="histStats"></p>
+    </div>
+    <h2>Theo ngày</h2>
+    <div class="card" id="histList"></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="v-settings" class="view">
+    <h1>Cài đặt</h1>
+    <div class="card">
+      <label for="sKey">Gemini API key</label>
+      <input id="sKey" type="password" autocomplete="off" placeholder="AIza...">
+      <p class="muted">Lấy key miễn phí tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Key chỉ lưu trên máy này, không nằm trong code trên GitHub.</p>
+      <label for="sGoal">Mục tiêu calo mỗi ngày (kcal)</label>
+      <input id="sGoal" type="number" inputmode="numeric" min="800" max="6000">
+      <label for="sProtein">Mục tiêu protein (g)</label>
+      <input id="sProtein" type="number" inputmode="numeric" min="0" max="400">
+      <label for="sModel">Model Gemini</label>
+      <input id="sModel" type="text" autocapitalize="off" autocorrect="off">
+      <p class="muted">Để mặc định <code>gemini-flash-latest</code>. Nếu lỗi, app tự thử <code>gemini-2.5-flash</code> và <code>gemini-2.5-flash-lite</code>.</p>
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="saveSettings">Lưu</button>
+        <button id="testKey">Thử key</button>
+      </div>
+      <div id="settingsMsg" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <h2>Dữ liệu</h2>
+    <div class="card">
+      <p class="muted" style="margin-top:0">Mọi dữ liệu nằm trong trình duyệt của điện thoại. Thỉnh thoảng nên xuất file sao lưu.</p>
+      <div class="row" style="flex-wrap:wrap">
+        <button id="exportBtn">Xuất sao lưu</button>
+        <label class="btn" style="margin:0">Nhập sao lưu<input type="file" accept="application/json,.json" id="importInput" hidden></label>
+        <button class="ghost" id="wipeBtn" style="color:var(--warn)">Xoá hết</button>
+      </div>
+      <div id="dataMsg" class="muted" style="margin-top:8px"></div>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button data-tab="today" class="on"><span>🍽️</span>Hôm nay</button>
+  <button data-tab="history"><span>📊</span>Lịch sử</button>
+  <button data-tab="settings"><span>⚙️</span>Cài đặt</button>
+</nav>
+
+<!-- MEAL SHEET -->
+<div class="sheet-bg" id="sheetBg">
+  <div class="sheet" id="sheet">
+    <div class="row between">
+      <strong id="sheetTitle">Thêm bữa ăn</strong>
+      <button class="ghost" id="closeSheet" aria-label="Đóng">✕</button>
+    </div>
+    <img id="preview" class="preview" alt="" hidden>
+    <label for="note" id="noteLabel">Ghi chú thêm (không bắt buộc)</label>
+    <textarea id="note" rows="2" placeholder="VD: cơm 1 chén, ăn hết nửa tô, có thêm 1 ly trà sữa..."></textarea>
+    <button class="primary" id="analyzeBtn" style="width:100%;margin-top:10px">Phân tích bằng AI</button>
+    <div id="aiComment" class="muted" style="margin-top:8px"></div>
+    <div id="sheetErr" class="err"></div>
+
+    <div id="itemsWrap" hidden>
+      <div id="items"></div>
+      <button class="ghost" id="addItem">+ Thêm món</button>
+      <div class="totals" id="sheetTotals"></div>
+      <label for="mealType">Bữa</label>
+      <select id="mealType">
+        <option value="breakfast">Sáng</option>
+        <option value="lunch">Trưa</option>
+        <option value="dinner">Tối</option>
+        <option value="snack">Ăn vặt</option>
+      </select>
+      <div class="row" style="margin-top:14px">
+        <button class="primary" id="saveMeal" style="flex:1">Lưu bữa ăn</button>
+        <button class="ghost" id="deleteMeal" style="color:var(--warn)" hidden>Xoá</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const LS_MEALS = 'snapcal.meals.v1';
+const LS_SETTINGS = 'snapcal.settings.v1';
+const DEFAULTS = { apiKey: '', goal: 2000, protein: 120, model: 'gemini-flash-latest' };
+const FALLBACK_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const TYPE_LABEL = { breakfast: 'Sáng', lunch: 'Trưa', dinner: 'Tối', snack: 'Ăn vặt' };
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
+const r0 = (n) => Math.round(n);
+
+function load(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch { return fallback; }
+}
+function save(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); return true; }
+  catch (e) { alert('Không lưu được (bộ nhớ trình duyệt đầy?). Hãy xuất sao lưu rồi xoá bớt.'); return false; }
+}
+
+let settings = Object.assign({}, DEFAULTS, load(LS_SETTINGS, {}));
+let meals = load(LS_MEALS, []);
+if (!Array.isArray(meals)) meals = [];
+
+const dstr = (d) => { const z = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
+const parseD = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return dstr(d); };
+let viewDate = dstr(new Date());
+
+const sumItems = (items) => items.reduce((a, it) => ({
+  kcal: a.kcal + num(it.kcal), protein: a.protein + num(it.protein), carbs: a.carbs + num(it.carbs), fat: a.fat + num(it.fat)
+}), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+const mealsOn = (date) => meals.filter((m) => m.date === date).sort((a, b) => a.time.localeCompare(b.time));
+const dayTotals = (date) => sumItems(mealsOn(date).flatMap((m) => m.items));
+
+function guessType(d = new Date()) {
+  const h = d.getHours();
+  if (h >= 4 && h < 10) return 'breakfast';
+  if (h >= 10 && h < 15) return 'lunch';
+  if (h >= 17 && h < 22) return 'dinner';
+  return 'snack';
+}
+
+// ---------- TODAY VIEW ----------
+function renderToday() {
+  const today = dstr(new Date());
+  const d = parseD(viewDate);
+  const label = viewDate === today ? 'Hôm nay' : viewDate === addDays(today, -1) ? 'Hôm qua'
+    : d.toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric' });
+  $('dateLabel').textContent = label;
+  $('nextDay').disabled = viewDate >= today;
+  $('keyNotice').hidden = !!settings.apiKey;
+  if (typeof checkBackup === 'function') checkBackup();
+
+  const t = dayTotals(viewDate);
+  const goal = num(settings.goal) || 2000;
+  $('kcalEaten').textContent = r0(t.kcal);
+  $('kcalGoal').textContent = `/ ${r0(goal)} kcal`;
+  const C = 2 * Math.PI * 56;
+  const frac = Math.min(t.kcal / goal, 1);
+  const arc = $('ringArc');
+  arc.setAttribute('stroke-dashoffset', String(C * (1 - frac)));
+  arc.setAttribute('stroke', t.kcal > goal ? 'var(--warn)' : 'var(--brand)');
+  const rem = goal - t.kcal;
+  $('remaining').textContent = rem >= 0 ? `Còn ${r0(rem)} kcal` : `Vượt ${r0(-rem)} kcal`;
+  $('remaining').style.color = rem >= 0 ? '' : 'var(--warn)';
+
+  // carbs/fat targets derived from remaining calories after protein: 55% carbs, 45% fat by kcal
+  const pGoal = num(settings.protein) || 120;
+  const restK = Math.max(goal - pGoal * 4, 0);
+  const cGoal = (restK * 0.55) / 4, fGoal = (restK * 0.45) / 9;
+  const setBar = (id, bid, val, g) => {
+    $(id).textContent = `${r0(val)} / ${r0(g)} g`;
+    $(bid).style.width = `${Math.min(100, g ? (val / g) * 100 : 0)}%`;
+  };
+  setBar('mP', 'bP', t.protein, pGoal);
+  setBar('mC', 'bC', t.carbs, cGoal);
+  setBar('mF', 'bF', t.fat, fGoal);
+
+  const list = mealsOn(viewDate);
+  $('mealCount').textContent = list.length ? `${list.length} bữa` : '';
+  $('mealList').innerHTML = list.length ? list.map((m) => {
+    const s = sumItems(m.items);
+    const time = new Date(m.time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    return `<div class="meal" data-id="${esc(m.id)}">
+      ${m.thumb ? `<img src="${m.thumb}" alt="">` : `<div class="noimg">🍴</div>`}
+      <div class="info">
+        <div class="names">${esc(m.items.map((i) => i.name).join(', ') || '(trống)')}</div>
+        <div class="muted">${TYPE_LABEL[m.type] || ''} · ${time} · P ${r0(s.protein)} · C ${r0(s.carbs)} · F ${r0(s.fat)}</div>
+      </div>
+      <div class="kcal">${r0(s.kcal)}</div>
+    </div>`;
+  }).join('') : `<div class="empty muted">Chưa có bữa nào. Chụp một tấm ảnh để bắt đầu.</div>`;
+}
+
+$('prevDay').onclick = () => { viewDate = addDays(viewDate, -1); renderToday(); };
+$('nextDay').onclick = () => { if (viewDate < dstr(new Date())) { viewDate = addDays(viewDate, 1); renderToday(); } };
+$('mealList').onclick = (e) => {
+  const el = e.target.closest('.meal'); if (!el) return;
+  const m = meals.find((x) => x.id === el.dataset.id); if (m) openSheet({ meal: m });
+};
+// ---------- HISTORY ----------
+function renderHistory() {
+  const today = dstr(new Date());
+  const goal = num(settings.goal) || 2000;
+  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13));
+  const totals = days.map((d) => ({ d, t: dayTotals(d) }));
+  const max = Math.max(goal * 1.2, ...totals.map((x) => x.t.kcal));
+  $('bars').innerHTML = totals.map(({ d, t }) =>
+    `<div class="b" title="${d}: ${r0(t.kcal)} kcal"><i class="${t.kcal > goal ? 'over' : ''}" style="height:${(t.kcal / max) * 100}%"></i>${parseD(d).getDate()}</div>`
+  ).join('');
+  const logged = totals.filter((x) => x.t.kcal > 0);
+  const avg = logged.length ? logged.reduce((a, x) => a + x.t.kcal, 0) / logged.length : 0;
+  $('histStats').textContent = logged.length
+    ? `Trung bình ${r0(avg)} kcal/ngày trên ${logged.length} ngày có ghi. Mục tiêu ${r0(goal)} kcal.`
+    : 'Chưa có dữ liệu.';
+
+  const allDays = [...new Set(meals.map((m) => m.date))].sort().reverse().slice(0, 60);
+  $('histList').innerHTML = allDays.length ? allDays.map((d) => {
+    const t = dayTotals(d);
+    return `<div class="meal" data-date="${d}"><div class="info">
+        <div>${parseD(d).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' })}</div>
+        <div class="muted">${mealsOn(d).length} bữa · P ${r0(t.protein)} · C ${r0(t.carbs)} · F ${r0(t.fat)}</div>
+      </div><div class="kcal" style="${t.kcal > goal ? 'color:var(--warn)' : ''}">${r0(t.kcal)}</div></div>`;
+  }).join('') : `<div class="empty muted">Chưa có dữ liệu.</div>`;
+}
+$('histList').onclick = (e) => {
+  const el = e.target.closest('.meal'); if (!el) return;
+  viewDate = el.dataset.date; switchTab('today');
+};
+
+// ---------- TABS ----------
+function switchTab(name) {
+  document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === `v-${name}`));
+  if (name === 'today') renderToday();
+  if (name === 'history') renderHistory();
+  if (name === 'settings') fillSettings();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('nav.tabs button').forEach((b) => b.onclick = () => switchTab(b.dataset.tab));
+
+// ---------- SETTINGS ----------
+function fillSettings() {
+  $('sKey').value = settings.apiKey; $('sGoal').value = settings.goal;
+  $('sProtein').value = settings.protein; $('sModel').value = settings.model;
+  $('settingsMsg').textContent = '';
+}
+function readSettings() {
+  return {
+    apiKey: $('sKey').value.trim(),
+    goal: num($('sGoal').value) || DEFAULTS.goal,
+    protein: num($('sProtein').value) || DEFAULTS.protein,
+    model: $('sModel').value.trim() || DEFAULTS.model,
+  };
+}
+$('saveSettings').onclick = () => {
+  settings = readSettings(); save(LS_SETTINGS, settings); workingModel = null;
+  $('settingsMsg').textContent = '✓ Đã lưu.';
+};
+$('testKey').onclick = async () => {
+  settings = readSettings(); save(LS_SETTINGS, settings);
+  const msg = $('settingsMsg');
+  if (!settings.apiKey) { msg.textContent = 'Chưa nhập key.'; return; }
+  msg.innerHTML = '<span class="spinner"></span>Đang thử...';
+  try {
+    const res = await analyze({ note: '1 quả chuối' });
+    msg.textContent = `✓ Key hoạt động (model: ${res._model}). "1 quả chuối" ≈ ${r0(sumItems(res.items).kcal)} kcal.`;
+  } catch (e) { msg.textContent = '✗ ' + e.message; }
+};
+
+$('exportBtn').onclick = () => {
+  const data = JSON.stringify({ app: 'snapcal', version: 1, exportedAt: new Date().toISOString(), meals,
+    settings: { goal: settings.goal, protein: settings.protein, model: settings.model } }, null, 1);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+  a.download = `snapcal-backup-${dstr(new Date())}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  save('snapcal.lastBackup', Date.now()); checkBackup();
+};
+$('importInput').onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    if (!Array.isArray(j.meals)) throw new Error('File không đúng định dạng.');
+    const ids = new Set(meals.map((m) => m.id));
+    const added = j.meals.filter((m) => m && m.id && m.date && Array.isArray(m.items) && !ids.has(m.id));
+    meals = meals.concat(added); save(LS_MEALS, meals);
+    $('dataMsg').textContent = `✓ Đã nhập ${added.length} bữa ăn.`;
+  } catch (err) { $('dataMsg').textContent = '✗ ' + err.message; }
+};
+$('wipeBtn').onclick = () => {
+  if (!confirm('Xoá toàn bộ nhật ký ăn uống? (Key và cài đặt vẫn giữ)')) return;
+  meals = []; save(LS_MEALS, meals); $('dataMsg').textContent = 'Đã xoá.';
+};
+// ---------- IMAGE ----------
+async function loadImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode(); return img;
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+function toJpeg(img, maxSide, quality, square = false) {
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const c = document.createElement('canvas');
+  if (square) {
+    const s = Math.min(w, h);
+    c.width = c.height = maxSide;
+    c.getContext('2d').drawImage(img, (w - s) / 2, (h - s) / 2, s, s, 0, 0, maxSide, maxSide);
+  } else {
+    const k = Math.min(1, maxSide / Math.max(w, h));
+    c.width = Math.round(w * k); c.height = Math.round(h * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  }
+  return c.toDataURL('image/jpeg', quality);
+}
+
+// ---------- GEMINI ----------
+const SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    items: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          name: { type: 'STRING' }, portion: { type: 'STRING' },
+          kcal: { type: 'NUMBER' }, protein: { type: 'NUMBER' }, carbs: { type: 'NUMBER' }, fat: { type: 'NUMBER' },
+        },
+        required: ['name', 'portion', 'kcal', 'protein', 'carbs', 'fat'],
+      },
+    },
+    comment: { type: 'STRING' },
+  },
+  required: ['items', 'comment'],
+};
+
+let workingModel = null; // remembers which model answered last, to skip 404 fallbacks
+async function analyze({ b64, note }) {
+  if (!settings.apiKey) throw new Error('Chưa có API key. Vào Cài đặt để dán key.');
+  const prompt = [
+    'You are a careful nutritionist. ' + (b64 ? 'Look at the meal photo' : 'Read the meal description') +
+    ' and estimate every food and drink item that was eaten.',
+    'For each item give: name (Vietnamese, add the English name in parentheses if helpful), portion (estimated amount, e.g. "1 tô ~500g", "1 chén ~150g"), kcal, protein, carbs, fat in grams for THAT portion.',
+    'Use plate/bowl/utensil size to judge portions. Include hidden calories: cooking oil, sauces, dressings, sugar in drinks.',
+    'Prefer typical home-style or restaurant values. Be realistic, not optimistic.',
+    'In "comment" write 1 short sentence in Vietnamese about confidence or what was hard to judge.',
+    'If there is no food at all, return an empty items list and explain in comment.',
+    note ? `User note (trust this over the photo for portions/what was eaten): ${note}` : '',
+  ].filter(Boolean).join('\n');
+
+  const parts = [{ text: prompt }];
+  if (b64) parts.push({ inline_data: { mime_type: 'image/jpeg', data: b64 } });
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts }],
+    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: SCHEMA },
+  });
+
+  const models = [...new Set([workingModel, settings.model, ...FALLBACK_MODELS].filter(Boolean))];
+  let lastErr = null;
+  for (const model of models) {
+    let r;
+    try {
+      r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': settings.apiKey }, body,
+      });
+    } catch (e) { throw new Error('Không kết nối được tới Gemini. Kiểm tra mạng.'); }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = j?.error?.message || `HTTP ${r.status}`;
+      if (r.status === 404) { lastErr = new Error(`Model "${model}" không tồn tại.`); continue; }
+      if (r.status === 429) throw new Error('Đã chạm giới hạn miễn phí của Gemini (429). Đợi 1–2 phút rồi thử lại; nếu hết lượt trong ngày thì mai sẽ reset.');
+      if (r.status === 400 && /api key/i.test(msg)) throw new Error('API key không hợp lệ. Kiểm tra lại trong Cài đặt.');
+      if (r.status === 503 || r.status === 500) { lastErr = new Error(`Gemini đang quá tải (${r.status}). Thử lại sau.`); continue; }
+      throw new Error(msg);
+    }
+    const cand = j?.candidates?.[0];
+    const text = (cand?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || '').join('');
+    if (!text) throw new Error('Gemini không trả kết quả' + (cand?.finishReason ? ` (${cand.finishReason})` : '') + '. Thử ảnh khác.');
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error('Kết quả AI không đọc được. Bấm phân tích lại.'); }
+    data.items = (data.items || []).map((i) => ({
+      name: String(i.name || 'Món ăn'), portion: String(i.portion || ''),
+      kcal: r0(num(i.kcal)), protein: r0(num(i.protein)), carbs: r0(num(i.carbs)), fat: r0(num(i.fat)),
+    }));
+    data._model = model;
+    workingModel = model;
+    return data;
+  }
+  throw lastErr || new Error('Không gọi được Gemini.');
+}
+// ---------- SHEET ----------
+let draft = null; // { id?, b64?, thumb?, items, type, note, time? }
+
+function openSheet({ meal, img, textOnly, manual }) {
+  $('sheetErr').textContent = ''; $('aiComment').textContent = '';
+  if (meal) {
+    draft = JSON.parse(JSON.stringify(meal));
+    $('sheetTitle').textContent = 'Sửa bữa ăn';
+    $('note').value = meal.note || '';
+    $('analyzeBtn').textContent = 'Phân tích lại';
+    $('analyzeBtn').hidden = !meal.thumb && !meal.note;
+    $('deleteMeal').hidden = false;
+  } else {
+    draft = { items: [], type: guessType(), note: '' };
+    $('sheetTitle').textContent = 'Thêm bữa ăn';
+    $('note').value = '';
+    $('analyzeBtn').textContent = 'Phân tích bằng AI';
+    $('analyzeBtn').hidden = false;
+    $('deleteMeal').hidden = true;
+    if (img) { draft.b64 = toJpeg(img, 1024, 0.82).split(',')[1]; draft.thumb = toJpeg(img, 160, 0.6, true); }
+    if (manual) {
+      $('sheetTitle').textContent = 'Tự nhập calo';
+      $('analyzeBtn').hidden = true;
+      draft.items = [{ name: '', portion: '', kcal: '', protein: '', carbs: '', fat: '' }];
+    }
+  }
+  $('noteLabel').textContent = textOnly ? 'Mô tả bữa ăn' : manual ? 'Ghi chú (không bắt buộc)' : 'Ghi chú thêm (không bắt buộc)';
+  $('note').placeholder = textOnly ? 'VD: 1 tô phở bò tái, 1 ly cà phê sữa đá' : manual ? 'VD: ăn ở nhà bạn, không chụp' : 'VD: cơm 1 chén, ăn hết nửa tô, có thêm 1 ly trà sữa...';
+  const prev = $('preview');
+  const src = draft.b64 ? 'data:image/jpeg;base64,' + draft.b64 : draft.thumb;
+  prev.hidden = !src; if (src) prev.src = src;
+  $('mealType').value = draft.type || guessType();
+  renderItems();
+  $('itemsWrap').hidden = !meal && !manual;
+  $('sheetBg').classList.add('on');
+  document.body.style.overflow = 'hidden';
+  if (textOnly) setTimeout(() => $('note').focus(), 50);
+  if (manual) setTimeout(() => { const k = document.querySelector('#items input[data-k="kcal"]'); if (k) k.focus(); }, 50);
+}
+function closeSheet() { $('sheetBg').classList.remove('on'); document.body.style.overflow = ''; draft = null; }
+$('closeSheet').onclick = closeSheet;
+$('sheetBg').onclick = (e) => { if (e.target === $('sheetBg')) closeSheet(); };
+
+function renderItems() {
+  $('items').innerHTML = draft.items.map((it, i) => `
+    <div class="item" data-i="${i}">
+      <div class="row"><input data-k="name" value="${esc(it.name)}" placeholder="Tên món">
+        <button class="ghost" data-del="${i}" aria-label="Xoá món">✕</button></div>
+      <input data-k="portion" value="${esc(it.portion)}" placeholder="Khẩu phần" style="margin-top:6px">
+      <div class="grid">
+        ${['kcal', 'protein', 'carbs', 'fat'].map((k) => `<div><label>${k === 'kcal' ? 'kcal' : k[0].toUpperCase() + ' (g)'}</label>
+          <input data-k="${k}" type="number" inputmode="decimal" min="0" value="${it[k]}"></div>`).join('')}
+      </div>
+    </div>`).join('');
+  updateTotals();
+}
+function updateTotals() {
+  const s = sumItems(draft.items);
+  $('sheetTotals').textContent = `Tổng: ${r0(s.kcal)} kcal · P ${r0(s.protein)}g · C ${r0(s.carbs)}g · F ${r0(s.fat)}g`;
+}
+$('items').oninput = (e) => {
+  const k = e.target.dataset.k; const box = e.target.closest('.item'); if (!k || !box) return;
+  const it = draft.items[+box.dataset.i];
+  it[k] = ['name', 'portion'].includes(k) ? e.target.value : num(e.target.value);
+  updateTotals();
+};
+$('items').onclick = (e) => {
+  const d = e.target.dataset.del; if (d === undefined) return;
+  draft.items.splice(+d, 1); renderItems();
+};
+$('addItem').onclick = () => { draft.items.push({ name: '', portion: '', kcal: 0, protein: 0, carbs: 0, fat: 0 }); renderItems(); };
+
+$('analyzeBtn').onclick = async () => {
+  const note = $('note').value.trim();
+  if (!draft.b64 && !note) {
+    $('sheetErr').textContent = draft.thumb ? 'Ảnh gốc không còn lưu (chỉ lưu ảnh nhỏ). Hãy thêm mô tả để phân tích lại.' : 'Nhập mô tả món ăn trước.';
+    return;
+  }
+  const btn = $('analyzeBtn'); const old = btn.textContent;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Đang phân tích...';
+  $('sheetErr').textContent = ''; $('aiComment').textContent = '';
+  try {
+    const res = await analyze({ b64: draft.b64, note });
+    draft.items = res.items;
+    $('aiComment').textContent = res.comment ? '💬 ' + res.comment : '';
+    if (!res.items.length) $('sheetErr').textContent = 'AI không thấy món ăn nào. Bạn có thể tự thêm món.';
+    renderItems(); $('itemsWrap').hidden = false;
+  } catch (e) {
+    $('sheetErr').textContent = e.message;
+    $('itemsWrap').hidden = false; // allow manual entry anyway
+    if (!draft.items.length) { draft.items.push({ name: '', portion: '', kcal: 0, protein: 0, carbs: 0, fat: 0 }); renderItems(); }
+  } finally { btn.disabled = false; btn.textContent = old; }
+};
+
+$('saveMeal').onclick = () => {
+  const items = draft.items.filter((i) => i.name.trim() || num(i.kcal) > 0)
+    .map((i) => ({ ...i, name: i.name.trim() || 'Ước lượng', kcal: num(i.kcal), protein: num(i.protein), carbs: num(i.carbs), fat: num(i.fat) }));
+  if (!items.length) { $('sheetErr').textContent = 'Chưa có món nào để lưu.'; return; }
+  const now = new Date();
+  let time = draft.time;
+  if (!time) {
+    // if logging for a past day, put it at noon of that day
+    time = viewDate === dstr(now) ? now.toISOString() : new Date(parseD(viewDate).setHours(12)).toISOString();
+  }
+  const meal = {
+    id: draft.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 7)),
+    date: draft.date || viewDate, time, type: $('mealType').value,
+    items, note: $('note').value.trim(), thumb: draft.thumb || null,
+  };
+  const idx = meals.findIndex((m) => m.id === meal.id);
+  if (idx >= 0) meals[idx] = meal; else meals.push(meal);
+  if (save(LS_MEALS, meals)) { closeSheet(); renderToday(); }
+};
+$('deleteMeal').onclick = () => {
+  if (!draft?.id || !confirm('Xoá bữa ăn này?')) return;
+  meals = meals.filter((m) => m.id !== draft.id); save(LS_MEALS, meals); closeSheet(); renderToday();
+};
+
+async function onPhoto(e) {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const img = await loadImage(f);
+    openSheet({ img });
+    if (settings.apiKey) $('analyzeBtn').click();
+  } catch { alert('Không mở được ảnh này. Thử chọn ảnh khác.'); }
+}
+$('camInput').onchange = onPhoto;
+$('libInput').onchange = onPhoto;
+$('textBtn').onclick = () => openSheet({ textOnly: true });
+$('quickBtn').onclick = () => openSheet({ manual: true });
+
+// ---------- STORAGE SAFETY ----------
+// ask the browser to keep this site's data (not auto-cleared); backup reminder every 7 days
+try { navigator.storage?.persist?.(); } catch {}
+function checkBackup() {
+  const last = Number(load('snapcal.lastBackup', 0)) || 0;
+  $('backupNotice').hidden = !(meals.length >= 5 && Date.now() - last > 7 * 864e5);
+}
+$('backupNow').onclick = () => { switchTab('settings'); $('exportBtn').click(); };
+
+// refresh "today" when app is reopened on a new day
+let lastToday = dstr(new Date());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  const t = dstr(new Date());
+  if (t !== lastToday) { if (viewDate === lastToday) viewDate = t; lastToday = t; renderToday(); }
+});
+
+// iOS needs a PNG home-screen icon: draw it on a canvas at startup
+try {
+  const c = document.createElement('canvas'); c.width = c.height = 180;
+  const g = c.getContext('2d'), k = 180 / 512;
+  g.fillStyle = '#0f766e'; g.fillRect(0, 0, 180, 180);
+  const dot = (r, col) => { g.fillStyle = col; g.beginPath(); g.arc(90, 90, r * k, 0, Math.PI * 2); g.fill(); };
+  dot(154, '#fff'); dot(105, '#d9f0ec'); dot(34, '#0f766e');
+  g.fillStyle = '#fff'; g.fillRect(44 * k, 148 * k, 36 * k, 216 * k); g.fillRect(432 * k, 148 * k, 36 * k, 216 * k);
+  $('touchIcon').href = c.toDataURL('image/png');
+} catch {}
+
+renderToday();
+})();
+</script>
 </body>
 </html>
