@@ -68,6 +68,21 @@
   .meal .names { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .meal .kcal { font-weight: 700; white-space: nowrap; }
   .empty { text-align: center; padding: 22px 0; }
+  .group { margin-bottom: 12px; padding: 14px 16px 6px; }
+  .group-head { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; }
+  .group-head .icon { font-size: 22px; }
+  .group-head .title { font-weight: 700; font-size: 17px; }
+  .group-head .gk { margin-left: auto; font-weight: 700; font-size: 18px; }
+  .group-head .add { padding: 6px 12px; font-size: 18px; line-height: 1; }
+  .group .gmacro { font-size: 13px; margin: -6px 0 6px 32px; }
+  .group .gbar { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 0 0 6px; }
+  .group .gbar > i { display: block; height: 100%; background: var(--brand); }
+  .group .none { padding: 4px 0 10px 32px; font-size: 14px; }
+  .group .meal:first-of-type { border-top: 1px solid var(--line); }
+  .pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .pick .btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 6px; margin: 0; font-size: 14px; }
+  .pick .btn span { font-size: 24px; }
+  .pick input { display: none; }
 
   nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: var(--card); border-top: 1px solid var(--line);
     padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
@@ -91,10 +106,28 @@
     display: inline-block; animation: spin .8s linear infinite; vertical-align: -3px; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .bars { display: flex; align-items: flex-end; gap: 4px; height: 150px; padding-top: 10px; }
-  .bars .b { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; font-size: 10px; color: var(--muted); }
-  .bars .b i { width: 100%; background: var(--brand); border-radius: 4px 4px 0 0; min-height: 2px; }
-  .bars .b i.over { background: var(--warn); }
+  :root { --m-breakfast: #f59e0b; --m-lunch: #14b8a6; --m-dinner: #6366f1; --m-snack: #ec4899; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 10px; }
+  .seg button { background: none; color: var(--muted); padding: 8px; border-radius: 9px; }
+  .seg button.on { background: var(--brand); color: #fff; }
+  @media (prefers-color-scheme: dark) { .seg button.on { color: #062421; } }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+  .stat .v { font-size: 22px; font-weight: 700; }
+  .stat .l { font-size: 13px; color: var(--muted); }
+  .stat.wide { grid-column: 1 / -1; }
+  .chart { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 170px; margin-top: 12px; padding-bottom: 16px; }
+  .chart .col { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; position: relative; cursor: pointer; min-width: 0; }
+  .chart .col .stack { display: flex; flex-direction: column-reverse; border-radius: 3px 3px 0 0; overflow: hidden; }
+  .chart .col .stack i { display: block; width: 100%; }
+  .chart .col .d { position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--muted); white-space: nowrap; }
+  .chart .col.today .d { color: var(--brand); font-weight: 700; }
+  .chart .goal { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--warn); opacity: .7; pointer-events: none; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .mrow { margin: 8px 0 12px; }
+  .mrow .bar { height: 8px; background: var(--line); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+  .mrow .bar i { display: block; height: 100%; border-radius: 6px; }
   .notice { background: var(--brand-soft); border-radius: 12px; padding: 12px; font-size: 14px; margin-bottom: 12px; }
 </style>
 </head>
@@ -141,19 +174,36 @@
       <button class="btn" id="quickBtn"><span>➕</span>Tự nhập calo</button>
     </div>
 
-    <div class="card">
-      <div class="row between"><strong>Bữa ăn</strong><span class="muted" id="mealCount"></span></div>
-      <div id="mealList"></div>
-    </div>
+    <div id="mealList"></div>
   </section>
 
   <!-- HISTORY -->
   <section id="v-history" class="view">
-    <h1>Lịch sử 14 ngày</h1>
-    <div class="card">
-      <div class="bars" id="bars"></div>
-      <p class="muted" id="histStats"></p>
+    <h1>Thống kê</h1>
+    <div class="seg" id="rangeSeg">
+      <button data-range="week">7 ngày</button>
+      <button data-range="month" class="on">Theo tháng</button>
     </div>
+    <div class="datebar" id="monthNav">
+      <button class="ghost" id="prevMonth" aria-label="Tháng trước">◀</button>
+      <strong id="monthLabel"></strong>
+      <button class="ghost" id="nextMonth" aria-label="Tháng sau">▶</button>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="row between"><strong>Kcal mỗi ngày</strong><span class="muted" id="goalNote"></span></div>
+      <div class="chart" id="chart"></div>
+      <div class="legend">
+        <span><i style="background:var(--m-breakfast)"></i>Sáng</span><span><i style="background:var(--m-lunch)"></i>Trưa</span>
+        <span><i style="background:var(--m-dinner)"></i>Tối</span><span><i style="background:var(--m-snack)"></i>Ăn vặt</span>
+      </div>
+    </div>
+
+    <h2>Theo bữa</h2>
+    <div class="card" id="byMeal"></div>
+
     <h2>Theo ngày</h2>
     <div class="card" id="histList"></div>
   </section>
@@ -194,9 +244,22 @@
 
 <nav class="tabs">
   <button data-tab="today" class="on"><span>🍽️</span>Hôm nay</button>
-  <button data-tab="history"><span>📊</span>Lịch sử</button>
+  <button data-tab="history"><span>📊</span>Thống kê</button>
   <button data-tab="settings"><span>⚙️</span>Cài đặt</button>
 </nav>
+
+<!-- ADD-TO-MEAL CHOOSER -->
+<div class="sheet-bg" id="pickBg">
+  <div class="sheet">
+    <div class="row between"><strong id="pickTitle">Thêm vào bữa</strong><button class="ghost" id="pickClose" aria-label="Đóng">✕</button></div>
+    <div class="pick">
+      <label class="btn primary"><span>📷</span>Chụp ảnh<input type="file" accept="image/*" capture="environment" id="pickCam"></label>
+      <label class="btn"><span>🖼️</span>Chọn ảnh<input type="file" accept="image/*" id="pickLib"></label>
+      <button class="btn" id="pickText"><span>✍️</span>Mô tả cho AI</button>
+      <button class="btn" id="pickQuick"><span>➕</span>Tự nhập calo</button>
+    </div>
+  </div>
+</div>
 
 <!-- MEAL SHEET -->
 <div class="sheet-bg" id="sheetBg">
@@ -239,6 +302,10 @@ const LS_SETTINGS = 'snapcal.settings.v1';
 const DEFAULTS = { apiKey: '', goal: 2000, protein: 120, model: 'gemini-flash-latest' };
 const FALLBACK_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 const TYPE_LABEL = { breakfast: 'Sáng', lunch: 'Trưa', dinner: 'Tối', snack: 'Ăn vặt' };
+const MEAL_TYPES = [
+  { key: 'breakfast', icon: '🌅' }, { key: 'lunch', icon: '☀️' }, { key: 'dinner', icon: '🌙' }, { key: 'snack', icon: '🍪' },
+];
+let presetType = null; // set when adding from a meal section's + button
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -313,56 +380,131 @@ function renderToday() {
   setBar('mF', 'bF', t.fat, fGoal);
 
   const list = mealsOn(viewDate);
-  $('mealCount').textContent = list.length ? `${list.length} bữa` : '';
-  $('mealList').innerHTML = list.length ? list.map((m) => {
+  const mealRow = (m) => {
     const s = sumItems(m.items);
     const time = new Date(m.time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     return `<div class="meal" data-id="${esc(m.id)}">
       ${m.thumb ? `<img src="${m.thumb}" alt="">` : `<div class="noimg">🍴</div>`}
       <div class="info">
         <div class="names">${esc(m.items.map((i) => i.name).join(', ') || '(trống)')}</div>
-        <div class="muted">${TYPE_LABEL[m.type] || ''} · ${time} · P ${r0(s.protein)} · C ${r0(s.carbs)} · F ${r0(s.fat)}</div>
+        <div class="muted">${time} · P ${r0(s.protein)} · C ${r0(s.carbs)} · F ${r0(s.fat)}</div>
       </div>
       <div class="kcal">${r0(s.kcal)}</div>
     </div>`;
-  }).join('') : `<div class="empty muted">Chưa có bữa nào. Chụp một tấm ảnh để bắt đầu.</div>`;
+  };
+  $('mealList').innerHTML = MEAL_TYPES.map(({ key, icon }) => {
+    const ms = list.filter((m) => (m.type || 'snack') === key);
+    const s = sumItems(ms.flatMap((m) => m.items));
+    const pct = t.kcal > 0 ? (s.kcal / t.kcal) * 100 : 0;
+    return `<div class="card group">
+      <div class="group-head">
+        <span class="icon">${icon}</span><span class="title">${TYPE_LABEL[key]}</span>
+        <span class="gk">${r0(s.kcal)} <span class="muted">kcal</span></span>
+        <button class="add" data-add="${key}" aria-label="Thêm vào bữa ${TYPE_LABEL[key]}">+</button>
+      </div>
+      ${ms.length ? `<div class="gmacro muted">P ${r0(s.protein)}g · C ${r0(s.carbs)}g · F ${r0(s.fat)}g · ${r0(pct)}% cả ngày</div>
+        <div class="gbar"><i style="width:${pct}%"></i></div>${ms.map(mealRow).join('')}`
+        : `<div class="none muted">Chưa ăn</div>`}
+    </div>`;
+  }).join('');
 }
 
 $('prevDay').onclick = () => { viewDate = addDays(viewDate, -1); renderToday(); };
 $('nextDay').onclick = () => { if (viewDate < dstr(new Date())) { viewDate = addDays(viewDate, 1); renderToday(); } };
 $('mealList').onclick = (e) => {
+  const add = e.target.closest('[data-add]');
+  if (add) { openPicker(add.dataset.add); return; }
   const el = e.target.closest('.meal'); if (!el) return;
   const m = meals.find((x) => x.id === el.dataset.id); if (m) openSheet({ meal: m });
 };
-// ---------- HISTORY ----------
+// ---------- HISTORY / STATS ----------
+let histRange = 'month';
+let histMonth = dstr(new Date()).slice(0, 7); // 'YYYY-MM'
+
+function histDays() {
+  const today = dstr(new Date());
+  if (histRange === 'week') return Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
+  const [y, m] = histMonth.split('-').map(Number);
+  const n = new Date(y, m, 0).getDate();
+  return Array.from({ length: n }, (_, i) => `${histMonth}-${String(i + 1).padStart(2, '0')}`);
+}
+function dayByMeal(date) {
+  const out = { breakfast: 0, lunch: 0, dinner: 0, snack: 0 };
+  for (const m of mealsOn(date)) out[m.type in out ? m.type : 'snack'] += sumItems(m.items).kcal;
+  return out;
+}
+const fmt = (n) => r0(n).toLocaleString('vi-VN');
+
 function renderHistory() {
   const today = dstr(new Date());
   const goal = num(settings.goal) || 2000;
-  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13));
-  const totals = days.map((d) => ({ d, t: dayTotals(d) }));
-  const max = Math.max(goal * 1.2, ...totals.map((x) => x.t.kcal));
-  $('bars').innerHTML = totals.map(({ d, t }) =>
-    `<div class="b" title="${d}: ${r0(t.kcal)} kcal"><i class="${t.kcal > goal ? 'over' : ''}" style="height:${(t.kcal / max) * 100}%"></i>${parseD(d).getDate()}</div>`
-  ).join('');
-  const logged = totals.filter((x) => x.t.kcal > 0);
-  const avg = logged.length ? logged.reduce((a, x) => a + x.t.kcal, 0) / logged.length : 0;
-  $('histStats').textContent = logged.length
-    ? `Trung bình ${r0(avg)} kcal/ngày trên ${logged.length} ngày có ghi. Mục tiêu ${r0(goal)} kcal.`
-    : 'Chưa có dữ liệu.';
+  const days = histDays();
+  const past = days.filter((d) => d <= today);
 
-  const allDays = [...new Set(meals.map((m) => m.date))].sort().reverse().slice(0, 60);
-  $('histList').innerHTML = allDays.length ? allDays.map((d) => {
-    const t = dayTotals(d);
-    return `<div class="meal" data-date="${d}"><div class="info">
-        <div>${parseD(d).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' })}</div>
-        <div class="muted">${mealsOn(d).length} bữa · P ${r0(t.protein)} · C ${r0(t.carbs)} · F ${r0(t.fat)}</div>
-      </div><div class="kcal" style="${t.kcal > goal ? 'color:var(--warn)' : ''}">${r0(t.kcal)}</div></div>`;
-  }).join('') : `<div class="empty muted">Chưa có dữ liệu.</div>`;
+  // header / nav
+  document.querySelectorAll('#rangeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.range === histRange));
+  $('monthNav').hidden = histRange !== 'month';
+  const [y, m] = histMonth.split('-').map(Number);
+  $('monthLabel').textContent = `Tháng ${m}/${y}`;
+  $('nextMonth').disabled = histMonth >= today.slice(0, 7);
+
+  // per-day data
+  const rows = days.map((d) => { const bm = dayByMeal(d); const t = dayTotals(d); return { d, bm, t }; });
+  const logged = rows.filter((r) => r.d <= today && r.t.kcal > 0);
+  const total = logged.reduce((a, r) => a + r.t.kcal, 0);
+  const avg = logged.length ? total / logged.length : 0;
+  const over = logged.filter((r) => r.t.kcal > goal).length;
+  const avgP = logged.length ? logged.reduce((a, r) => a + r.t.protein, 0) / logged.length : 0;
+  const pGoal = num(settings.protein) || 120;
+
+  $('stats').innerHTML = `
+    <div class="stat wide"><div class="l">Tổng kcal ${histRange === 'month' ? `tháng ${m}` : '7 ngày qua'}</div><div class="v">${fmt(total)} kcal</div>
+      <div class="l">${logged.length}/${past.length} ngày có ghi</div></div>
+    <div class="stat"><div class="l">Trung bình / ngày</div><div class="v" style="${avg > goal ? 'color:var(--warn)' : ''}">${fmt(avg)}</div><div class="l">mục tiêu ${fmt(goal)}</div></div>
+    <div class="stat"><div class="l">Ngày vượt mục tiêu</div><div class="v" style="${over ? 'color:var(--warn)' : ''}">${over}</div><div class="l">trên ${logged.length} ngày có ghi</div></div>
+    <div class="stat"><div class="l">Protein TB / ngày</div><div class="v">${r0(avgP)}g</div><div class="l">mục tiêu ${r0(pGoal)}g</div></div>
+    <div class="stat"><div class="l">Chênh so với mục tiêu</div><div class="v" style="${total - goal * logged.length > 0 ? 'color:var(--warn)' : ''}">${total - goal * logged.length > 0 ? '+' : ''}${fmt(total - goal * logged.length)}</div><div class="l">kcal (các ngày có ghi)</div></div>`;
+
+  // chart
+  $('goalNote').textContent = `--- mục tiêu ${fmt(goal)}`;
+  const max = Math.max(goal * 1.15, ...rows.map((r) => r.t.kcal)) || 1;
+  const step = days.length > 10 ? 5 : 1;
+  $('chart').innerHTML = rows.map(({ d, bm, t }, i) => {
+    const dayNum = Number(d.slice(8));
+    const showLabel = step === 1 || dayNum === 1 || dayNum % step === 0;
+    const segs = MEAL_TYPES.map(({ key }) => bm[key] > 0 ? `<i style="height:${(bm[key] / max) * 154}px;background:var(--m-${key})"></i>` : '').join('');
+    return `<div class="col${d === today ? ' today' : ''}" data-date="${d}" title="${d}: ${fmt(t.kcal)} kcal">
+      <div class="stack">${segs}</div>${showLabel ? `<span class="d">${histRange === 'week' ? parseD(d).toLocaleDateString('vi-VN', { weekday: 'short' }) : dayNum}</span>` : ''}</div>`;
+  }).join('') + `<div class="goal" style="bottom:${16 + (goal / max) * 154}px"></div>`;
+
+  // by meal
+  const mt = { breakfast: 0, lunch: 0, dinner: 0, snack: 0 };
+  logged.forEach((r) => MEAL_TYPES.forEach(({ key }) => { mt[key] += r.bm[key]; }));
+  $('byMeal').innerHTML = MEAL_TYPES.map(({ key, icon }) => {
+    const pct = total ? (mt[key] / total) * 100 : 0;
+    return `<div class="mrow"><div class="row between"><span>${icon} ${TYPE_LABEL[key]}</span>
+      <span><b>${fmt(mt[key])}</b> <span class="muted">kcal · ${r0(pct)}% · TB ${fmt(logged.length ? mt[key] / logged.length : 0)}/ngày</span></span></div>
+      <div class="bar"><i style="width:${pct}%;background:var(--m-${key})"></i></div></div>`;
+  }).join('');
+
+  // day list (newest first)
+  const list = logged.slice().reverse();
+  $('histList').innerHTML = list.length ? list.map(({ d, t, bm }) => `<div class="meal" data-date="${d}"><div class="info">
+      <div>${parseD(d).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric' })}</div>
+      <div class="muted">${MEAL_TYPES.map(({ key, icon }) => `${icon} ${fmt(bm[key])}`).join(' · ')}</div>
+    </div><div class="kcal" style="${t.kcal > goal ? 'color:var(--warn)' : ''}">${fmt(t.kcal)}</div></div>`).join('')
+    : `<div class="empty muted">Chưa có dữ liệu trong khoảng này.</div>`;
 }
-$('histList').onclick = (e) => {
-  const el = e.target.closest('.meal'); if (!el) return;
+$('rangeSeg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; histRange = b.dataset.range; renderHistory(); };
+$('prevMonth').onclick = () => { const [y, m] = histMonth.split('-').map(Number); histMonth = dstr(new Date(y, m - 2, 1)).slice(0, 7); renderHistory(); };
+$('nextMonth').onclick = () => { const [y, m] = histMonth.split('-').map(Number); const nx = dstr(new Date(y, m, 1)).slice(0, 7); if (nx <= dstr(new Date()).slice(0, 7)) { histMonth = nx; renderHistory(); } };
+const goToDay = (e) => {
+  const el = e.target.closest('[data-date]'); if (!el) return;
+  if (el.dataset.date > dstr(new Date())) return;
   viewDate = el.dataset.date; switchTab('today');
 };
+$('histList').onclick = goToDay;
+$('chart').onclick = goToDay;
 
 // ---------- TABS ----------
 function switchTab(name) {
@@ -574,7 +716,7 @@ function openSheet({ meal, img, textOnly, manual }) {
     $('analyzeBtn').hidden = !meal.thumb && !meal.note;
     $('deleteMeal').hidden = false;
   } else {
-    draft = { items: [], type: guessType(), note: '' };
+    draft = { items: [], type: presetType || guessType(), note: '' };
     $('sheetTitle').textContent = 'Thêm bữa ăn';
     $('note').value = '';
     $('analyzeBtn').textContent = 'Phân tích bằng AI';
@@ -600,7 +742,22 @@ function openSheet({ meal, img, textOnly, manual }) {
   if (textOnly) setTimeout(() => $('note').focus(), 50);
   if (manual) setTimeout(() => { const k = document.querySelector('#items input[data-k="kcal"]'); if (k) k.focus(); }, 50);
 }
-function closeSheet() { $('sheetBg').classList.remove('on'); document.body.style.overflow = ''; draft = null; }
+function closeSheet() { $('sheetBg').classList.remove('on'); document.body.style.overflow = ''; draft = null; presetType = null; }
+
+// chooser opened from a meal section's + button
+function openPicker(type) {
+  presetType = type;
+  $('pickTitle').textContent = `Thêm vào bữa ${TYPE_LABEL[type]}`;
+  $('pickBg').classList.add('on'); document.body.style.overflow = 'hidden';
+}
+function closePicker(keepType) {
+  $('pickBg').classList.remove('on'); document.body.style.overflow = '';
+  if (!keepType) presetType = null;
+}
+$('pickClose').onclick = () => closePicker(false);
+$('pickBg').onclick = (e) => { if (e.target === $('pickBg')) closePicker(false); };
+$('pickText').onclick = () => { closePicker(true); openSheet({ textOnly: true }); };
+$('pickQuick').onclick = () => { closePicker(true); openSheet({ manual: true }); };
 $('closeSheet').onclick = closeSheet;
 $('sheetBg').onclick = (e) => { if (e.target === $('sheetBg')) closeSheet(); };
 
@@ -688,9 +845,11 @@ async function onPhoto(e) {
   } catch { alert('Không mở được ảnh này. Thử chọn ảnh khác.'); }
 }
 $('camInput').onchange = onPhoto;
+$('pickCam').onchange = (e) => { closePicker(true); onPhoto(e); };
+$('pickLib').onchange = (e) => { closePicker(true); onPhoto(e); };
 $('libInput').onchange = onPhoto;
-$('textBtn').onclick = () => openSheet({ textOnly: true });
-$('quickBtn').onclick = () => openSheet({ manual: true });
+$('textBtn').onclick = () => { presetType = null; openSheet({ textOnly: true }); };
+$('quickBtn').onclick = () => { presetType = null; openSheet({ manual: true }); };
 
 // ---------- STORAGE SAFETY ----------
 // ask the browser to keep this site's data (not auto-cleared); backup reminder every 7 days
